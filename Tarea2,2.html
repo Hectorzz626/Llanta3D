@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Llanta 3D - Hector Vela</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap');
+
+        /* --- Estructura y Fondo --- */
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #background-container {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+        }
+
+        #background-container .bg-layer {
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            transition: transform 0.2s ease-out;
+        }
+        
+        #glcanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* --- Paletas de Colores para la UI --- */
+        :root {
+            --slider-track: #4a4a4a;
+            --control-bg: rgba(20, 20, 30, 0.7);
+            --text-color: #f0f0f0;
+            --btn-bg: #333;
+            --slider-thumb: #1e90ff;
+            --gradient-start: #4e54c8;
+            --gradient-end: #1a1a2e;
+        }
+        body[data-theme="pink"] { --slider-thumb: #ff4081; }
+        body[data-theme="red"] {
+            --slider-thumb: #e53935;
+            --gradient-start: #ff512f;
+            --gradient-end: #dd2476;
+        }
+
+        /* --- Estilos de la Interfaz de Controles --- */
+        #controls {
+            position: absolute; bottom: 20px; left: 50%;
+            transform: translateX(-50%); background: var(--control-bg);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
+            padding: 20px 25px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            display: flex; align-items: center; gap: 20px; color: var(--text-color);
+        }
+        .control-group, .texture-group {
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .control-group label, .texture-group label {
+            font-size: 14px; margin-bottom: 8px; font-weight: 500;
+        }
+        .button-container { display: flex; gap: 8px; }
+        .texture-btn {
+            background-color: var(--btn-bg); color: var(--text-color);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px;
+            width: 35px; height: 30px; cursor: pointer; font-size: 14px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .texture-btn.active { background-color: var(--slider-thumb); border-color: white; }
+        .texture-btn:active { transform: scale(0.95); }
+        #resetButton {
+            background-color: var(--slider-thumb); color: white;
+            border: none; border-radius: 6px; padding: 10px 15px; cursor: pointer;
+            font-size: 14px; transition: background-color 0.2s, transform 0.1s;
+        }
+        #resetButton:active { transform: scale(0.95); }
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 150px; height: 6px; background: var(--slider-track);
+            border-radius: 3px; outline: none; cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; background: var(--slider-thumb);
+            border-radius: 50%; border: 2px solid white;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        input[type="range"]::-moz-range-thumb {
+            width: 18px; height: 18px; background: var(--slider-thumb);
+            border-radius: 50%; border: 2px solid white;
+        }
+        .palette-selector { display: flex; gap: 8px; padding-top: 5px; }
+        .palette-option {
+            width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+            border: 2px solid transparent; transition: border-color 0.2s, transform 0.1s;
+        }
+        .palette-option.active { border-color: white; }
+        .palette-option:active { transform: scale(0.9); }
+    </style>
+</head>
+<body data-theme="original">
+    
+    <div id="background-container">
+        <div class="bg-layer"></div>
+    </div>
+    
+    <canvas id="glcanvas"></canvas>
+
+    <div id="controls">
+        <div class="control-group">
+            <label>Ángulo Horizontal</label>
+            <input type="range" id="thetaSlider" min="0" max="6.28" step="0.01" value="0">
+        </div>
+        <div class="control-group">
+            <label>Ángulo Vertical</label>
+            <input type="range" id="phiSlider" min="0.1" max="3.1" step="0.01" value="1.2">
+        </div>
+        <div class="control-group">
+            <label>Zoom</label>
+            <input type="range" id="radiusSlider" min="3" max="50" step="0.1" value="15">
+        </div>
+        <div class="control-group">
+            <label>Velocidad</label>
+            <input type="range" id="speedSlider" min="0" max="0.05" step="0.001" value="0.018">
+        </div>
+
+        <div class="texture-group">
+            <label>Personalización</label>
+            <div class="button-container">
+                <button class="texture-btn active" data-type="rin" data-index="0">1</button>
+                <button class="texture-btn" data-type="rin" data-index="1">2</button>
+                <button class="texture-btn" data-type="rin" data-index="2">3</button>
+            </div>
+            <div class="button-container">
+                <button class="texture-btn active" data-type="caucho" data-index="0">1</button>
+                <button class="texture-btn" data-type="caucho" data-index="1">2</button>
+                <button class="texture-btn" data-type="caucho" data-index="2">3</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Paleta</label>
+            <div class="palette-selector">
+                <div class="palette-option active" data-palette="original" style="background: linear-gradient(45deg, #4e54c8, #1e90ff);"></div>
+                <div class="palette-option" data-palette="pink" style="background: linear-gradient(45deg, #f8b195, #ff4081);"></div>
+                <div class="palette-option" data-palette="red" style="background: linear-gradient(45deg, #ff512f, #e53935);"></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+             <label>&nbsp;</label>
+            <button id="resetButton">Reiniciar Vista</button>
+        </div>
+    </div>
+
+<script>
+    // ===================================
+    //  PARTE 1: LOGICA DE LA LLANTA
+    // ===================================
+
+    const canvas = document.getElementById('glcanvas');
+    const gl = canvas.getContext('webgl');
+    if (!gl) {
+        alert("WebGL no está disponible en este navegador.");
+    }
+
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // --- Shaders ---
+    const vsSource = `
+        attribute vec3 aPosition; 
+        attribute vec2 aTexCoord; 
+        uniform mat4 uModelViewMatrix; 
+        uniform mat4 uProjectionMatrix; 
+        varying vec2 vTexCoord; 
+        void main(void){ 
+            gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition, 1.0); 
+            vTexCoord = aTexCoord; 
+        }
+    `;
+    const fsSource = `
+        precision mediump float; 
+        varying vec2 vTexCoord; 
+        uniform sampler2D uCaucho; 
+        uniform sampler2D uRin; 
+        uniform bool uIsSide; 
+        void main(void){ 
+            if(uIsSide){ 
+                gl_FragColor = vec4(0.3,0.3,0.3,1.0); 
+            } else { 
+                vec2 centered = vTexCoord*2.0 - 1.0; 
+                float r = length(centered); 
+                float radioRin = 0.6; 
+                if(r < radioRin){ 
+                    gl_FragColor = texture2D(uRin, vTexCoord); 
+                } else { 
+                    gl_FragColor = texture2D(uCaucho, vTexCoord); 
+                } 
+            } 
+        }
+    `;
+
+    // --- Compilacion de Shaders ---
+    function compile(type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            throw new Error(gl.getShaderInfoLog(s));
+        }
+        return s;
+    }
+    const prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(prog));
+    }
+    gl.useProgram(prog);
+
+    // --- Ubicaciones de Atributos y Uniforms ---
+    const attribPos = gl.getAttribLocation(prog, "aPosition");
+    const attribTex = gl.getAttribLocation(prog, "aTexCoord");
+    const uniMV = gl.getUniformLocation(prog, "uModelViewMatrix");
+    const uniP = gl.getUniformLocation(prog, "uProjectionMatrix");
+    const uniCaucho = gl.getUniformLocation(prog, "uCaucho");
+    const uniRin = gl.getUniformLocation(prog, "uRin");
+    const uniIsSide = gl.getUniformLocation(prog, "uIsSide");
+    
+    // --- Creacion de Geometría ---
+    function createCylinderX(radius, length, segments) {
+        const pos = [], tex = [], idxSides = [], idxCaps = [];
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments * 2 * Math.PI;
+            const y = radius * Math.cos(t), z = radius * Math.sin(t);
+            pos.push(-length / 2, y, z);
+            tex.push(i / segments, 0);
+            pos.push(length / 2, y, z);
+            tex.push(i / segments, 1);
+        }
+        for (let i = 0; i < segments * 2; i += 2) {
+            idxSides.push(i, i + 1, i + 2, i + 1, i + 3, i + 2);
+        }
+        function addCap(x) {
+            const center = pos.length / 3;
+            pos.push(x, 0, 0);
+            tex.push(0.5, 0.5);
+            for (let i = 0; i <= segments; i++) {
+                const t = i / segments * 2 * Math.PI;
+                const y = radius * Math.cos(t), z = radius * Math.sin(t);
+                pos.push(x, y, z);
+                tex.push((y / radius) * 0.5 + 0.5, (z / radius) * 0.5 + 0.5);
+                if (i < segments) {
+                    if (x < 0) {
+                        idxCaps.push(center, center + 1 + i, center + 2 + i);
+                    } else {
+                        idxCaps.push(center, center + 2 + i, center + 1 + i);
+                    }
+                }
+            }
+        }
+        addCap(-length / 2);
+        addCap(length / 2);
+        return { positions: new Float32Array(pos), texcoords: new Float32Array(tex), indicesSides: new Uint16Array(idxSides), indicesCaps: new Uint16Array(idxCaps), radius, length };
+    }
+    const cyl = createCylinderX(0.8, 0.6, 48);
+
+    // --- Creacion de Buffers ---
+    function makeBuffer(data, type = gl.ARRAY_BUFFER) {
+        const b = gl.createBuffer();
+        gl.bindBuffer(type, b);
+        gl.bufferData(type, data, gl.STATIC_DRAW);
+        return b;
+    }
+    const posBuf = makeBuffer(cyl.positions);
+    const texBuf = makeBuffer(cyl.texcoords);
+    const idxBufSides = makeBuffer(cyl.indicesSides, gl.ELEMENT_ARRAY_BUFFER);
+    const idxBufCaps = makeBuffer(cyl.indicesCaps, gl.ELEMENT_ARRAY_BUFFER);
+    
+    // --- Funciones de Matematicas (Matrices) ---
+    function mat4Identity() { return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); }
+    function mat4Multiply(a, b) { const o = new Float32Array(16); for (let i = 0; i < 4; i++) { for (let j = 0; j < 4; j++) { o[i + j * 4] = a[i] * b[j * 4] + a[i + 4] * b[j * 4 + 1] + a[i + 8] * b[j * 4 + 2] + a[i + 12] * b[j * 4 + 3]; } } return o; }
+    function mat4Translate(tx, ty, tz) { const m = mat4Identity(); m[12] = tx; m[13] = ty; m[14] = tz; return m; }
+    function mat4RotateY(a) { const c = Math.cos(a), s = Math.sin(a); return new Float32Array([c,0,s,0, 0,1,0,0, -s,0,c,0, 0,0,0,1]); }
+    function mat4RotateX(a) { const c = Math.cos(a), s = Math.sin(a); return new Float32Array([1,0,0,0, 0,c,-s,0, 0,s,c,0, 0,0,0,1]); }
+    function mat4Perspective(fovy, asp, n, f) { const g = 1 / Math.tan(fovy / 2); const o = new Float32Array(16); o[0] = g / asp; o[5] = g; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f); return o; }
+    function mat4LookAt(e, c, u) { const fx = c[0] - e[0], fy = c[1] - e[1], fz = c[2] - e[2]; const rl = 1 / Math.hypot(fx, fy, fz); const f = [fx * rl, fy * rl, fz * rl]; const ul = 1 / Math.hypot(u[0], u[1], u[2]); const uu = [u[0] * ul, u[1] * ul, u[2] * ul]; const sx = f[1] * uu[2] - f[2] * uu[1], sy = f[2] * uu[0] - f[0] * uu[2], sz = f[0] * uu[1] - f[1] * uu[0]; const rl2 = 1 / Math.hypot(sx, sy, sz); const s = [sx * rl2, sy * rl2, sz * rl2]; const up = [f[1] * s[2] - f[2] * s[1], f[2] * s[0] - f[0] * s[2], f[0] * s[1] - f[1] * s[0]]; const o = new Float32Array(16); o[0] = s[0]; o[4] = s[1]; o[8] = s[2]; o[12] = -(s[0] * e[0] + s[1] * e[1] + s[2] * e[2]); o[1] = up[0]; o[5] = up[1]; o[9] = up[2]; o[13] = -(up[0] * e[0] + up[1] * e[1] + up[2] * e[2]); o[2] = -f[0]; o[6] = -f[1]; o[10] = -f[2]; o[14] = f[0] * e[0] + f[1] * e[1] + f[2] * e[2]; o[3] = 0; o[7] = 0; o[11] = 0; o[15] = 1; return o; }
+    
+    // --- Carga de Texturas ---
+    const numTextures = 3;
+    let rinTextures = [], cauchoTextures = [];
+    let currentRinIndex = 0, currentCauchoIndex = 0;
+    let loadedCount = 0;
+    let animationStarted = false;
+    const placeholderTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, placeholderTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 0, 255, 255]));
+    function loadTexture(url, onload) { const tex = gl.createTexture(); const img = new Image(); img.onload = () => { gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); onload(tex); }; img.onerror = () => { console.error(`Error al cargar la textura: ${url}. Usando textura temporal.`); onload(placeholderTexture); }; img.src = url; }
+    const totalTexturesToLoad = numTextures * 2;
+    for (let i = 0; i < numTextures; i++) {
+        loadTexture(`rin${i + 1}.png`, t => {
+            rinTextures[i] = t;
+            loadedCount++;
+            if (loadedCount === totalTexturesToLoad && !animationStarted) {
+                requestAnimationFrame(draw);
+                animationStarted = true;
+            }
+        });
+        loadTexture(`caucho${i + 1}.png`, t => {
+            cauchoTextures[i] = t;
+            loadedCount++;
+            if (loadedCount === totalTexturesToLoad && !animationStarted) {
+                requestAnimationFrame(draw);
+                animationStarted = true;
+            }
+        });
+    }
+
+    // --- Loop de Dibujado
+    const orbitRadius = 6.0;
+    const cylinderRadius = cyl.radius;
+    let angleOrbit = 0.0;
+    gl.enable(gl.DEPTH_TEST);
+
+    function draw() {
+        gl.clearColor(0.0, 0.0, 0.0, 0.0); // Canvas transparente para ver el fondo
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        const proj = mat4Perspective(Math.PI / 4, canvas.width / canvas.height, 0.1, 100);
+        const theta = parseFloat(document.getElementById("thetaSlider").value);
+        const phi = parseFloat(document.getElementById("phiSlider").value);
+        const radius = parseFloat(document.getElementById("radiusSlider").value);
+        const orbitSpeed = parseFloat(document.getElementById("speedSlider").value);
+
+        const eyeX = radius * Math.sin(phi) * Math.cos(theta);
+        const eyeY = radius * Math.cos(phi);
+        const eyeZ = radius * Math.sin(phi) * Math.sin(theta);
+        const view = mat4LookAt([eyeX, eyeY, eyeZ], [0, 0, 0], [0, 1, 0]);
+
+        const cx = orbitRadius * Math.cos(angleOrbit);
+        const cz = orbitRadius * Math.sin(angleOrbit);
+        const Ralign = mat4RotateY(angleOrbit + Math.PI);
+        const spin = -(orbitRadius * angleOrbit) / cylinderRadius;
+        const Rspin = mat4RotateX(spin);
+        const T = mat4Translate(cx, 0, cz);
+        const model = mat4Multiply(mat4Multiply(T, Ralign), Rspin);
+        const modelView = mat4Multiply(view, model);
+
+        gl.uniformMatrix4fv(uniP, false, proj);
+        gl.uniformMatrix4fv(uniMV, false, modelView);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+        gl.vertexAttribPointer(attribPos, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attribPos);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, texBuf);
+        gl.vertexAttribPointer(attribTex, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(attribTex);
+
+        gl.uniform1i(uniIsSide, true);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBufSides);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, cauchoTextures[currentCauchoIndex]);
+        gl.uniform1i(uniCaucho, 0);
+        gl.drawElements(gl.TRIANGLES, cyl.indicesSides.length, gl.UNSIGNED_SHORT, 0);
+
+        gl.uniform1i(uniIsSide, false);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, cauchoTextures[currentCauchoIndex]);
+        gl.uniform1i(uniCaucho, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, rinTextures[currentRinIndex]);
+        gl.uniform1i(uniRin, 1);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBufCaps);
+        gl.drawElements(gl.TRIANGLES, cyl.indicesCaps.length, gl.UNSIGNED_SHORT, 0);
+        
+        angleOrbit += orbitSpeed;
+        requestAnimationFrame(draw);
+    }
+    
+    // ===================================
+    // PARTE 2: LOGICA DE LA INTERFAZ Y FONDO
+    // ===================================
+    
+    // --- Logica de Botones (Reset y Texturas) ---
+    document.getElementById('resetButton').onclick = () => {
+        document.getElementById('thetaSlider').value = 0;
+        document.getElementById('phiSlider').value = 1.2;
+        document.getElementById('radiusSlider').value = 15;
+        document.getElementById('speedSlider').value = 0.018;
+    };
+    
+    document.querySelectorAll('.texture-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const type = e.target.dataset.type;
+            const index = parseInt(e.target.dataset.index, 10);
+            if (type === 'rin') {
+                currentRinIndex = index;
+            } else if (type === 'caucho') {
+                currentCauchoIndex = index;
+            }
+            const buttonGroup = document.querySelectorAll(`.texture-btn[data-type="${type}"]`);
+            buttonGroup.forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+        });
+    });
+
+    // --- Logica del Fondo Dianamico ---
+    const bgContainer = document.getElementById('background-container');
+    const bgLayer = bgContainer.querySelector('.bg-layer');
+
+    function setGradientBackground() {
+        const startColor = getComputedStyle(document.body).getPropertyValue('--gradient-start');
+        const endColor = getComputedStyle(document.body).getPropertyValue('--gradient-end');
+        bgLayer.style.backgroundImage = `radial-gradient(circle, ${startColor}, ${endColor} 80%)`;
+    }
+
+    document.querySelectorAll('.palette-option').forEach(button => {
+        button.addEventListener('click', (e) => {
+            document.querySelectorAll('.palette-option').forEach(btn => btn.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            
+            const theme = e.currentTarget.dataset.palette;
+            document.body.dataset.theme = theme;
+
+            if (theme === 'pink') {
+                bgLayer.style.backgroundImage = "url('fondo-rosado.jpg')";
+            } else {
+                setGradientBackground();
+            }
+        });
+    });
+
+    document.addEventListener("mousemove", (e) => {
+        const moveX = (e.clientX / window.innerWidth - 0.5) * 20;
+        const moveY = (e.clientY / window.innerHeight - 0.5) * 20;
+        bgLayer.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.03)`;
+    });
+
+    // Establecer el fondo inicial al cargar la página
+    setGradientBackground();
+
+</script>
+</body>
+</html>
